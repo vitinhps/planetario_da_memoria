@@ -10,7 +10,46 @@ Planetário da Memória é um jogo desenvolvido para proporcionar diversão e de
 - React
 - React Native Components
 - Expo
-# Estrutura do projeto
-- Descubra
+
+# Como Jogar
+
+### 1. Clone o repositório:
+
+```bash
+git clone https://github.com/vitin_hps/planetario_da_memoria.git
+```
+
+---
+
+### 2. Navegue até a pasta do projeto:
+
+```bash
+cd planetario_da_memoria
+```
+
+---
+
+### 3. Instale as dependências:
+
+```bash
+npm install
+```
+
+ou, se preferir:
+
+```bash
+yarn
+```
+
+---
+
+### 4. Execute o projeto (via Expo):
+
+```bash
+npx expo start
+```
+
+> Escaneie o QR code com o aplicativo **Expo Go** ou rode em um emulador.
+
 # Créditos
 - Desenvolvido por Vitor Henrique, Marcus Yan, com ajuda de inteligência artificial
