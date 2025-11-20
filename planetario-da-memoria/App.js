@@ -1,3 +1,4 @@
+// App.js - jogo de memória com login e leaderboard (classe-based)
 import React from "react";
 import {
   View,
@@ -6,11 +7,11 @@ import {
   TouchableOpacity,
   Image,
   FlatList,
-  Alert,
   ImageBackground,
+  TextInput,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Cartas do jogo
 const images = [
   { id: 1, image: require("./assets/4.png") },
   { id: 2, image: require("./assets/6.png") },
@@ -28,14 +29,53 @@ export default class App extends React.Component {
   constructor(props) {
     super(props);
     this.state = {
-      tela: "inicio", // "inicio", "jogo", "vitoria"
+      tela: "login", // login, inicio, jogo, vitoria, leaderboard
+      nome: "",
       modo: "",
       cards: [],
       flipped: [],
       matched: [],
       moves: 0,
+      leaderboard: { facil: [], desafiador: [] },
     };
   }
+
+  componentDidMount() {
+    this.carregarLeaderboard();
+  }
+
+  carregarLeaderboard = async () => {
+    try {
+      const data = await AsyncStorage.getItem("leaderboard");
+      if (data) {
+        this.setState({ leaderboard: JSON.parse(data) });
+      }
+    } catch (e) {
+      console.warn("Erro ao carregar leaderboard", e);
+    }
+  };
+
+  salvarLeaderboard = async (modo, nome, moves) => {
+    try {
+      const lb = { ...this.state.leaderboard };
+      // garante que a lista exista
+      if (!Array.isArray(lb[modo])) lb[modo] = [];
+
+      lb[modo].push({ nome, moves });
+      lb[modo].sort((a, b) => a.moves - b.moves);
+      lb[modo] = lb[modo].slice(0, 10);
+
+      await AsyncStorage.setItem("leaderboard", JSON.stringify(lb));
+      this.setState({ leaderboard: lb });
+    } catch (e) {
+      console.warn("Erro ao salvar leaderboard", e);
+    }
+  };
+
+  login = () => {
+    if (this.state.nome.trim() === "") return;
+    this.setState({ tela: "inicio" });
+  };
 
   iniciarJogo = (modo) => {
     const duplicated = [...images, ...images].map((c, i) => ({
@@ -55,7 +95,7 @@ export default class App extends React.Component {
   };
 
   flipCard = (card) => {
-    const { flipped, matched, cards, modo } = this.state;
+    const { flipped, matched, cards } = this.state;
 
     if (flipped.length < 2 && !card.flipped && !matched.includes(card.id)) {
       const newCards = cards.map((c) =>
@@ -67,15 +107,15 @@ export default class App extends React.Component {
       this.setState({ cards: newCards, flipped: newFlipped }, () => {
         if (this.state.flipped.length === 2) {
           setTimeout(() => {
-            this.verificarCartas(modo);
-          }, 800); // intervalo entre virar e verificar
+            this.verificarCartas(this.state.modo);
+          }, 800);
         }
       });
     }
   };
 
   verificarCartas = (modo) => {
-    const { flipped, matched, cards, moves } = this.state;
+    const { flipped, matched, cards, moves, nome } = this.state;
     if (flipped.length < 2) return;
 
     const [a, b] = flipped;
@@ -105,6 +145,8 @@ export default class App extends React.Component {
       },
       () => {
         if (this.state.matched.length === images.length) {
+          // moves já foi incrementado acima, mas queremos salvar o total final
+          this.salvarLeaderboard(modo, nome, this.state.moves);
           this.setState({ tela: "vitoria" });
         }
       }
@@ -129,79 +171,178 @@ export default class App extends React.Component {
   };
 
   render() {
-    const { tela, cards, moves } = this.state;
+    const { tela, cards, moves, leaderboard, nome } = this.state;
 
-    if (tela === "inicio") {
+    // LOGIN
+    if (tela === "login") {
       return (
-      <ImageBackground source={require("./assets/fundo.png")} style={styles.background} resizeMode="cover">
-        <View style={styles.container1}>
-          <Text style={styles.title}>Planetário da Memória</Text>
-          <Text style={styles.subtitle}>Iniciar Jogo Em:</Text>
-
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => this.iniciarJogo("facil")}
-          >
-            <Text style={styles.buttonText}>Fácil</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: "#d9534f" }]}
-            onPress={() => this.iniciarJogo("desafiador")}
-          >
-            <Text style={styles.buttonText}>Desafiador</Text>
-          </TouchableOpacity>
-        </View>
-      </ImageBackground>
-      );
-    }
-  
-    if (tela === "vitoria") {
-      return (
-        <ImageBackground source={require("./assets/fundo2.png")} style={styles.background} resizeMode="cover">
+        <ImageBackground
+          source={require("./assets/fundo.png")}
+          style={styles.background}
+          resizeMode="cover"
+        >
         <View style={styles.container}>
-          <Text style={styles.title}>Parabéns!</Text>
-          <Text style={styles.subtitle}>Você completou o jogo!</Text>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => this.setState({ tela: "inicio" })}
-          >
-            <Text style={styles.buttonText}>Voltar ao Início</Text>
+          <Text style={styles.title}>Planetário da Memória</Text>
+          <Text style={styles.subtitle}>Digite seu nome:</Text>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Seu nome"
+            placeholderTextColor="#ccc"
+            value={this.state.nome}
+            onChangeText={(nome) => this.setState({ nome })}
+          />
+
+          <TouchableOpacity style={styles.button} onPress={this.login}>
+            <Text style={styles.buttonText}>Entrar</Text>
           </TouchableOpacity>
         </View>
         </ImageBackground>
       );
     }
 
-    return (
-      <ImageBackground source={require("./assets/fundo2.png")} style={styles.background} resizeMode="cover">
-      <View style={styles.container}>
-        <Text style={styles.title}>Planetário da Memória</Text>
-        <Text style={styles.subtitle}>Jogadas: {moves}</Text>
-
-        <FlatList
-          data={cards}
-          renderItem={this.renderCard}
-          keyExtractor={(item) => item.key}
-          numColumns={4}
-          contentContainerStyle={styles.grid}
-        />
-        
-        <TouchableOpacity
-          style={styles.button}
-          onPress={() => this.iniciarJogo(this.state.modo)}
+    // INÍCIO
+    if (tela === "inicio") {
+      return (
+        <ImageBackground
+          source={require("./assets/fundo.png")}
+          style={styles.background}
+          resizeMode="cover"
         >
-          <Text style={styles.buttonText}>Reiniciar</Text>
-        </TouchableOpacity>
-        <View style={styles.box}>
-         <TouchableOpacity
+          <View style={styles.container1}>
+            <Text style={styles.title}>Planetário da Memória</Text>
+            <Text style={styles.subtitle}>Iniciar Jogo Em:</Text>
+
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => this.iniciarJogo("facil")}
+            >
+              <Text style={styles.buttonText}>Fácil</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: "#d9534f" }]}
+              onPress={() => this.iniciarJogo("desafiador")}
+            >
+              <Text style={styles.buttonText}>Desafiador</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: "#28a745" }]}
+              onPress={() => this.setState({ tela: "leaderboard" })}
+            >
+              <Text style={styles.buttonText}>Leaderboard</Text>
+            </TouchableOpacity>
+
+            <View style={{ marginTop: 20 }}>
+              <Text style={{ color: "#fff" }}>Logado como: {nome || "—"}</Text>
+            </View>
+          </View>
+        </ImageBackground>
+      );
+    }
+
+    // LEADERBOARD
+    if (tela === "leaderboard") {
+      return (
+        <ImageBackground
+          source={require("./assets/fundo.png")}
+          style={styles.background}
+          resizeMode="cover"
+        >
+          <View style={[styles.container, { paddingTop: 60 }]}>
+            <Text style={styles.title}>Leaderboard</Text>
+
+            <Text style={[styles.subtitle, { marginTop: 10 }]}>Modo Fácil</Text>
+            {leaderboard.facil.length === 0 ? (
+              <Text>Nenhum registro ainda.</Text>
+            ) : (
+              leaderboard.facil.map((p, i) => (
+                <Text key={i}>
+                  {i + 1}. {p.nome} - {p.moves} jogadas
+                </Text>
+              ))
+            )}
+
+            <Text style={[styles.subtitle, { marginTop: 20}]}>
+              Modo Desafiador
+            </Text>
+            {leaderboard.desafiador.length === 0 ? (
+              <Text>Nenhum registro ainda.</Text>
+            ) : (
+              leaderboard.desafiador.map((p, i) => (
+                <Text key={i}>
+                  {i + 1}. {p.nome} - {p.moves} jogadas
+                </Text>
+              ))
+            )}
+
+            <TouchableOpacity
+              style={[styles.button, { marginTop: 30 }]}
+              onPress={() => this.setState({ tela: "inicio" })}
+            >
+              <Text style={styles.buttonText}>Voltar</Text>
+            </TouchableOpacity>
+          </View>
+        </ImageBackground>
+      );
+    }
+
+    // VITÓRIA
+    if (tela === "vitoria") {
+      return (
+        <ImageBackground
+          source={require("./assets/fundo2.png")}
+          style={styles.background}
+          resizeMode="cover"
+        >
+          <View style={styles.container}>
+            <Text style={styles.title}>Parabéns!</Text>
+            <Text style={styles.subtitle}>Você completou o jogo em {moves} jogadas.</Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => this.setState({ tela: "inicio" })}
+            >
+              <Text style={styles.buttonText}>Voltar ao Início</Text>
+            </TouchableOpacity>
+          </View>
+        </ImageBackground>
+      );
+    }
+
+    // JOGO
+    return (
+      <ImageBackground
+        source={require("./assets/fundo2.png")}
+        style={styles.background}
+        resizeMode="cover"
+      >
+        <View style={styles.container}>
+          <Text style={styles.title}>Planetário da Memória</Text>
+          <Text style={styles.subtitle}>Jogadas: {moves}</Text>
+
+          <FlatList
+            data={cards}
+            renderItem={this.renderCard}
+            keyExtractor={(item) => item.key}
+            numColumns={4}
+            contentContainerStyle={styles.grid}
+          />
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => this.iniciarJogo(this.state.modo)}
+          >
+            <Text style={styles.buttonText}>Reiniciar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.button}
             onPress={() => this.setState({ tela: "inicio" })}
           >
             <Text style={styles.buttonText}>Voltar ao Início</Text>
           </TouchableOpacity>
         </View>
-      </View>
       </ImageBackground>
     );
   }
@@ -225,12 +366,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     marginBottom: 10,
-    color: 'white'
+    color: "white",
   },
   subtitle: {
     fontSize: 18,
     marginBottom: 20,
-    color: 'white',
+    color: "white",
   },
   grid: {
     alignItems: "center",
@@ -253,21 +394,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#007bff",
     padding: 12,
     borderRadius: 8,
-    marginTop: 20,
+    marginTop: 12,
+    minWidth: 160,
+    alignItems: "center",
   },
   buttonText: {
     color: "#fff",
     fontWeight: "bold",
     fontSize: 16,
   },
+  input: {
+    width: 280,
+    height: 44,
+    borderWidth: 1,
+    borderColor: "#fff",
+    color: "#fff",
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+  },
   background: {
-  flex: 1,
-  width: "100%",
-  height: "100%",
-  justifyContent: "center",
-  alignItems: "center",
-},
-  box: {
-    marginBottom: 50,
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
